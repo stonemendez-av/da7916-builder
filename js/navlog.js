@@ -196,6 +196,7 @@ export async function parseNavlog(pdfjsLib, data) {
       name: r.WAYPOINT,
       coord: coordFromName(r.WAYPOINT),
       mc: clean(r.CRS),
+      hdg: clean(r.HDG),
       alt: clean(r.ALT),
       gs: clean(r.GS),
       legDist: clean(r.DIST_LEG),

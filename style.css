@@ -91,7 +91,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--od); outlin
 .wp-auto div { padding: 7px 12px; border-right: 1px solid #eeece5; }
 .wp-auto span { display: block; font-size: 11px; color: var(--muted); letter-spacing: .04em; }
 .wp-auto b { font: 600 14px var(--mono); }
-.wp-in { display: grid; grid-template-columns: 90px 110px 90px 90px minmax(170px, 1fr); gap: 10px; padding: 12px; }
+.wp-in { display: grid; grid-template-columns: 90px 110px 90px minmax(170px, 1fr); gap: 10px; padding: 12px; }
 .wp-in .rem { grid-column: 1 / -1; }
 .wp-in .ll { font: 13px var(--mono); color: var(--muted); margin-top: 2px; font-weight: 400; }
 @media (max-width: 640px) {

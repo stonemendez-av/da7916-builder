@@ -43,7 +43,7 @@ async function loadFile(file) {
     if (nav.flightRules) { state.rules = nav.flightRules; state.rulesAuto = true; } else state.rulesAuto = false;
     const prec = +$('#precision').value;
     state.rows = nav.waypoints.map((w) => ({
-      wp: '', dtd: '', ias: $('#iasAll').value || '', tca: '', remarks: '',
+      wp: '', dtd: '', ias: $('#iasAll').value || '', remarks: '',
       mgrs: w.coord ? toMgrs(w.coord.lat, w.coord.lon, prec) : '',
       mgrsAuto: !!w.coord,
     }));
@@ -139,6 +139,7 @@ function renderWaypoints() {
       </div>
       <div class="wp-auto">
         <div><span>MC</span><b data-o="mc"></b></div>
+        <div><span>TCA</span><b data-o="tca"></b></div>
         <div><span>ALT</span><b data-o="alt"></b></div>
         <div><span>ETE</span><b data-o="ete"></b></div>
         <div><span>ELAPSED</span><b data-o="elapsed"></b></div>
@@ -152,7 +153,6 @@ function renderWaypoints() {
         <label class="f">WP<input type="text" data-k="wp" data-req value="${esc(r.wp)}" autocomplete="off"></label>
         <label class="f">DTD ID<input type="text" data-k="dtd" value="${esc(r.dtd)}" autocomplete="off"></label>
         <label class="f"><span class="lbl">IAS <small>kt</small></span><input type="number" inputmode="numeric" data-k="ias" data-req value="${esc(r.ias)}"></label>
-        <label class="f"><span class="lbl">TCA <small>optional</small></span><input type="text" data-k="tca" value="${esc(r.tca)}" autocomplete="off"></label>
         <label class="f mg">MGRS GRID<input type="text" data-k="mgrs" data-req value="${esc(r.mgrs)}" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="13S EC 1234 5678"><span class="ll" data-o="latlong"></span></label>
         <label class="f rem">Description / remarks<input type="text" data-k="remarks" value="${esc(r.remarks)}" autocomplete="off"></label>
       </div>

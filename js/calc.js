@@ -72,7 +72,7 @@ export function computeCard(nav, inp, rows) {
       dtd: r.dtd || '',
       mc: i > 0 && w.mc ? String(w.mc).padStart(3, '0') : '',
       alt: w.alt || '',
-      tca: r.tca || '',
+      tca: i > 0 && w.hdg ? String(w.hdg).padStart(3, '0') : '',
       tank: tank != null ? String(tank) : '',
       minFuel: minFuel != null ? String(minFuel) : '',
       ete: i > 0 ? fmtTime(w.legTimeMin) : '',

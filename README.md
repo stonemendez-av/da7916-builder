@@ -23,7 +23,8 @@ Everything runs in the browser. No file is uploaded anywhere.
 | Bingo | Req + Fuel to Alternate + Reserve (Burn x 20 min VFR / 30 min IFR) |
 | From / To | First / last waypoint MGRS |
 | Time Enroute / Total Distance | ForeFlight Summary & Times ETE / Distance |
-| WP, DTD ID, IAS, TCA, Remarks | User |
+| WP, DTD ID, IAS, Remarks | User |
+| TCA | ForeFlight MAG HDG |
 | MC | ForeFlight MAG CRS |
 | ALT | ForeFlight ALT |
 | Tank Fuel | Row 1 = Aircraft Fuel, then previous Tank Fuel minus that leg's Min Fuel |
