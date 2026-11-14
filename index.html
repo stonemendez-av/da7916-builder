@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DA 7916 Builder · ForeFlight NavLog to TDH Card</title>
+  <meta name="description" content="Turn a ForeFlight NavLog PDF into a filled DA Form 7916 Time Distance and Heading card. Runs entirely in your browser.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <div class="brand">
+        <span class="form-no">DA 7916</span>
+        <h1>TDH Card Builder</h1>
+      </div>
+      <p class="sub">Upload a ForeFlight NavLog, fill in what it can't tell us, download a filled DA Form 7916.</p>
+      <p class="privacy">Everything runs in your browser. Your NavLog never leaves this device.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- STEP 1 -->
+    <section class="step" id="step-upload">
+      <h2><span class="n">1</span> NavLog</h2>
+      <label class="drop" id="drop">
+        <input type="file" id="navlog-file" accept="application/pdf,.pdf">
+        <span class="drop-main">Choose or drop a ForeFlight NavLog PDF</span>
+        <span class="drop-hint">The PDF you export or share from ForeFlight's NavLog</span>
+      </label>
+      <div id="parse-error" class="alert error" hidden></div>
+      <div id="nav-summary" class="summary" hidden></div>
+    </section>
+
+    <!-- STEP 2 -->
+    <section class="step" id="step-mission" hidden>
+      <h2><span class="n">2</span> Mission and fuel</h2>
+      <div class="grid">
+        <label class="f wide">Operation
+          <input type="text" id="operation" data-req autocomplete="off">
+        </label>
+        <label class="f"><span class="lbl">Aircraft fuel <small>lbs</small></span>
+          <input type="number" id="aircraftFuel" inputmode="numeric" min="0" data-req data-save>
+        </label>
+        <label class="f"><span class="lbl">Burn <small>lbs/hr</small></span>
+          <input type="number" id="burn" inputmode="numeric" min="0" data-req data-save>
+        </label>
+        <label class="f"><span class="lbl">Fuel to alternate <small>lbs</small></span>
+          <input type="number" id="altFuel" inputmode="numeric" min="0" data-req data-save>
+        </label>
+        <div class="f"><span class="lbl">Flight rules <small id="rules-src"></small></span>
+          <div class="seg" role="radiogroup" aria-label="Flight rules">
+            <button type="button" data-rules="VFR" role="radio">VFR · 20 min</button>
+            <button type="button" data-rules="IFR" role="radio">IFR · 30 min</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="calc" id="fuel-calc"></div>
+
+      <details class="more">
+        <summary>Card options</summary>
+        <div class="grid">
+          <label class="f">MGRS precision
+            <select id="precision" data-save>
+              <option value="6">6-digit (100 m)</option>
+              <option value="8" selected>8-digit (10 m)</option>
+              <option value="10">10-digit (1 m)</option>
+            </select>
+          </label>
+          <label class="f"><span class="lbl">Footer ROUTE <small>bottom of each page</small></span>
+            <input type="text" id="footerRoute" autocomplete="off">
+          </label>
+          <label class="f">Footer V:
+            <input type="text" id="footerV" autocomplete="off">
+          </label>
+          <label class="f wide"><span class="lbl">ROUTE <small>header; auto-built from the ForeFlight route</small></span>
+            <textarea id="routeText" rows="2"></textarea>
+            <button type="button" class="link" id="route-reset">Rebuild from waypoints</button>
+          </label>
+        </div>
+      </details>
+    </section>
+
+    <!-- STEP 3 -->
+    <section class="step" id="step-wps" hidden>
+      <div class="step-head">
+        <h2><span class="n">3</span> Waypoints</h2>
+        <div class="bulk">
+          <label class="f inline"><span class="lbl">IAS for all <small>kt</small></span>
+            <input type="number" id="iasAll" inputmode="numeric" min="0" data-save>
+          </label>
+          <button type="button" id="ias-apply" class="btn ghost">Apply</button>
+          <button type="button" id="wp-number" class="btn ghost">Number WPs 1, 2, 3…</button>
+        </div>
+      </div>
+      <p class="note">MGRS is converted from the ForeFlight waypoint name, which is only accurate to the nearest minute (about half a mile). Check each grid against your map and overwrite it if needed; LAT LONG follows whatever MGRS you enter.</p>
+      <div id="wp-list"></div>
+    </section>
+
+    <!-- STEP 4 -->
+    <section class="step" id="step-build" hidden>
+      <h2><span class="n">4</span> Build the card</h2>
+      <div id="missing" class="alert warn" hidden></div>
+      <label class="check"><input type="checkbox" id="flatten"> Lock the fields (flatten) so the card can't be edited</label>
+      <div class="actions">
+        <button type="button" id="build" class="btn primary">Build DA 7916</button>
+        <a id="download" class="btn" hidden>Download PDF</a>
+      </div>
+      <p id="build-msg" class="note" hidden></p>
+      <div id="preview" class="preview"></div>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <p>Not an official Army product. Verify every value before flight. Leg values follow ForeFlight's layout: each waypoint row holds the leg flown into it.</p>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
