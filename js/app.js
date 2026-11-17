@@ -36,7 +36,7 @@ for (const id of Object.keys(DEFAULT_NAMES)) {
   el.value = store.get(id) ?? DEFAULT_NAMES[id];
   el.addEventListener('change', () => { store.set(id, el.value); refreshWpOptions(); refresh(); });
 }
-const nameList = (type) => [...new Set($('#' + NAMED[type]).value.split(/[,\n]+/).map((s) => s.trim().toUpperCase()).filter(Boolean))];
+const nameList = (type) => [...new Set($('#' + NAMED[type]).value.split(/[,\n]+/).map((s) => s.trim().toUpperCase()).filter(Boolean))].sort((x, y) => x.localeCompare(y));
 function wpChoices(type) {
   if (NAMED[type]) return nameList(type);
   const n = Math.max(30, (state.rows.length || 0) + 10);
