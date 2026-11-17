@@ -18,11 +18,12 @@ Everything runs in the browser. No file is uploaded anywhere.
 | Operation | User |
 | Route | Every point between departure and destination, using the MGRS you entered (editable) |
 | Aircraft Fuel | User |
-| Req | ForeFlight Flight Fuel |
+| Req | Burn x total flight time (from your IAS) + optional start/taxi fuel. ForeFlight's Flight Fuel shown on the site for comparison |
 | Burn | User (lbs/hr) |
 | Bingo | Req + Fuel to Alternate + Reserve (Burn x 20 min VFR / 30 min IFR) |
 | From / To | First / last waypoint MGRS |
-| Time Enroute / Total Distance | ForeFlight Summary & Times ETE / Distance |
+| Time Enroute | Sum of leg times; starts at the SP when "Mission clock starts at the SP" is checked |
+| Total Distance | km from the Mobile NavLog / NM from the NavLog, e.g. 141km/76nm |
 | WP | Airports fill in as their identifier (KCOS). Otherwise user: SP, ACP, CP, RP + number; LZ + bird name; PZ + tree name. Each number/name used once per type |
 | DTD ID, IAS, Remarks | User |
 | TCA | Terrain clearance altitude: optional user entry, blank by default |
@@ -30,10 +31,10 @@ Everything runs in the browser. No file is uploaded anywhere.
 | ALT | ForeFlight ALT |
 | Tank Fuel | Row 1 = Aircraft Fuel, then previous Tank Fuel minus that leg's Min Fuel |
 | Min Fuel | Burn x leg time (to the second when the Mobile NavLog is loaded) |
-| ETE | Leg time as min+sec (4+01). From the Mobile NavLog when loaded, else NavLog TIME LEG |
-| Elapsed | Running total as min+sec (8+06; 1+02+30 past an hour). Mobile NavLog TOTALS when they show seconds, else the sum of leg times; NavLog ETE column without the Mobile NavLog |
-| Leg Dist / Rem | ForeFlight DIST NM LEG / REM |
-| GS | ForeFlight GS |
+| ETE | Leg time as min+sec (4+01): leg distance from your grids / GS from your IAS. Legs without an IAS fall back to the Mobile NavLog, then the NavLog |
+| Elapsed | Running total of leg times as min+sec (8+06; 1+02+30 past an hour). Starts at 0+00 at the SP when the SP clock box is checked |
+| Leg Dist / Rem | km/nm, e.g. 11km/5nm (km from the Mobile NavLog, else converted; NM from the NavLog) |
+| GS | From your IAS: TAS from leg altitude, altimeter and the NavLog ISA temperature, then the NavLog wind for that leg. ForeFlight GS if no IAS |
 | MGRS Grid | Mobile NavLog grid when loaded, else user. Required for every point (airports always need one typed in) |
 | Lat Long | Converted back from the MGRS grid (center of the grid square) |
 | Clock | Left blank |
@@ -41,6 +42,12 @@ Everything runs in the browser. No file is uploaded anywhere.
 Each waypoint row carries the leg flown into that waypoint, matching ForeFlight's layout.
 
 ForeFlight's -TOC- and -TOD- rows are dropped. Their segment is folded into the next real point's leg: LEG DIST and ETE span the whole leg (from REM and the running ETE), GS is averaged over the leg, and MC/TCA come from the longer segment.
+
+## Performance math
+- IAS is treated as CAS (no airspeed position-error correction).
+- TAS uses the standard atmosphere at the leg's pressure altitude (NavLog ALT corrected by the altimeter setting) and the NavLog ISA deviation.
+- GS uses the NavLog wind (true) against the true course: MC plus magnetic variation, which is worked out from your grids (median of true bearing minus MC over the legs).
+- Leg distance is the great-circle distance between your grids.
 
 ## Mobile NavLog
 The Mobile NavLog lists each point's exact MGRS and leg times with seconds, and has no TOC/TOD rows. The site pairs it leg by leg with the NavLog (after folding TOC/TOD) and checks that every point is within 2.5 km of the NavLog's rounded coordinate and that airport names match. If the files don't line up, it says so and uses the NavLog alone.

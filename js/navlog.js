@@ -43,6 +43,17 @@ export function parseTime(s) {
   return null;
 }
 
+export function parseIsa(s) {
+  const m = String(s || '').match(/^([+-]?\d+(?:\.\d+)?)/);
+  return m ? +m[1] : null;
+}
+
+// "208/006" -> {dir: 208 (true, from), spd: 6}
+export function parseWind(s) {
+  const m = String(s || '').match(/^(\d{1,3})\s*\/\s*(\d{1,3})$/);
+  return m ? { dir: +m[1], spd: +m[2] } : null;
+}
+
 export function fmtTime(min) {
   if (min == null || isNaN(min)) return '';
   const h = Math.floor(min / 60);
@@ -162,6 +173,9 @@ function mergeTocTod(wps) {
       ...w,
       mc: main.mc || w.mc,
       hdg: main.hdg || w.hdg,
+      wind: main.wind || w.wind,
+      isa: main.isa ?? w.isa,
+      calcAlt: main.alt || w.alt,
       gs,
       legDist: legDist != null ? String(legDist) : w.legDist,
       legTimeMin: legTime,
@@ -248,6 +262,9 @@ export async function parseNavlog(pdfjsLib, data) {
       coord: coordFromName(r.WAYPOINT),
       mc: clean(r.CRS),
       hdg: clean(r.HDG),
+      isa: parseIsa(r.ISA),
+      wind: parseWind(r['DIR/SPD']),
+      tas: clean(r.TAS),
       alt: clean(r.ALT),
       gs: clean(r.GS),
       legDist: clean(r.DIST_LEG),

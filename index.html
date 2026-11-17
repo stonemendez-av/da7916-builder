@@ -49,6 +49,12 @@
         <label class="f"><span class="lbl">Fuel to alternate <small>lbs</small></span>
           <input type="number" id="altFuel" inputmode="numeric" min="0" data-req data-save>
         </label>
+        <label class="f"><span class="lbl">Start/taxi fuel <small>lbs, optional</small></span>
+          <input type="number" id="taxiFuel" inputmode="numeric" min="0" placeholder="0" data-save>
+        </label>
+        <label class="f"><span class="lbl">Altimeter <small>inHg, optional</small></span>
+          <input type="number" id="altimeter" inputmode="decimal" step="0.01" placeholder="29.92">
+        </label>
         <div class="f"><span class="lbl">Flight rules <small id="rules-src"></small></span>
           <div class="seg" role="radiogroup" aria-label="Flight rules">
             <button type="button" data-rules="VFR" role="radio">VFR · 20 min</button>
@@ -57,6 +63,7 @@
         </div>
       </div>
 
+      <label class="check"><input type="checkbox" id="spClock"> Mission clock starts at the SP (second point): leave the first leg out of ELAPSED and TIME ENROUTE</label>
       <div class="calc" id="fuel-calc"></div>
 
       <details class="more">

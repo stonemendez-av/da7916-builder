@@ -2,7 +2,7 @@ import * as pdfjsLib from '../lib/pdf.min.mjs';
 import * as PDFLib from '../lib/pdf-lib.esm.min.js';
 import { parseNavlog, fmtTime, isAirport } from './navlog.js';
 import { parseMobileNavlog, pairWithNavlog, isMobileNavlogText } from './mobile.js';
-import { computeCard, prettyMgrs, mgrsToLatLon, reserveMinutes } from './calc.js';
+import { computeCard, prettyMgrs, mgrsToLatLon, reserveMinutes, fmtPlus } from './calc.js';
 import { build7916 } from './fill7916.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('../lib/pdf.worker.min.mjs', import.meta.url).href;
@@ -126,13 +126,13 @@ function applyMobile() {
   state.mobileError = '';
   if (!state.navBase) { state.nav = null; return; }
   const base = state.navBase;
-  state.nav = { ...base, hasMobile: false, waypoints: base.waypoints.map((w) => ({ ...w, legSec: null })) };
+  state.nav = { ...base, hasMobile: false, waypoints: base.waypoints.map((w) => ({ ...w, legSec: null, totSec: null, totExact: false, legKm: null, totKm: null })) };
   if (!state.mobile) return;
   const pair = pairWithNavlog(base, state.mobile);
   if (!pair.ok) { state.mobileError = pair.error; return; }
   state.nav.hasMobile = true;
   pair.points.forEach((p, i) => {
-    Object.assign(state.nav.waypoints[i], { legSec: p.legSec, totSec: p.totSec, totExact: p.totExact });
+    Object.assign(state.nav.waypoints[i], { legSec: p.legSec, totSec: p.totSec, totExact: p.totExact, legKm: p.legKm, totKm: p.totKm });
     const r = state.rows[i];
     if (r && p.mgrs && (!r.mgrs || r.mgrsSrc === 'mobile')) { r.mgrs = p.mgrs; r.mgrsSrc = 'mobile'; }
   });
@@ -172,7 +172,9 @@ function renderSummary() {
 for (const b of $$('.seg button')) {
   b.addEventListener('click', () => { state.rules = b.dataset.rules; state.rulesAuto = false; refresh(); });
 }
-for (const id of ['operation', 'aircraftFuel', 'burn', 'altFuel', 'footerRoute', 'footerV']) {
+$('#spClock').checked = store.get('spClock') === '1';
+$('#spClock').addEventListener('change', () => { store.set('spClock', $('#spClock').checked ? '1' : '0'); refresh(); });
+for (const id of ['operation', 'aircraftFuel', 'burn', 'altFuel', 'taxiFuel', 'altimeter', 'footerRoute', 'footerV']) {
   $('#' + id).addEventListener('input', refresh);
 }
 $('#routeText').addEventListener('input', () => { state.routeEdited = true; refresh(); });
@@ -190,6 +192,9 @@ function inputs() {
     aircraftFuel: $('#aircraftFuel').value,
     burn: $('#burn').value,
     altFuel: $('#altFuel').value,
+    taxiFuel: $('#taxiFuel').value,
+    altimeter: $('#altimeter').value,
+    spClock: $('#spClock').checked,
     rules: state.rules,
     routeText: state.routeEdited ? $('#routeText').value : undefined,
     footerRoute: $('#footerRoute').value.trim(),
@@ -217,16 +222,18 @@ function renderWaypoints() {
         <div><span>ELAPSED</span><b data-o="elapsed"></b></div>
         <div><span>LEG DIST</span><b data-o="legDist"></b></div>
         <div><span>REM</span><b data-o="rem"></b></div>
+        <div><span>TAS</span><b data-x="tas"></b></div>
         <div><span>GS</span><b data-o="gs"></b></div>
         <div><span>MIN FUEL</span><b data-o="minFuel"></b></div>
         <div><span>TANK FUEL</span><b data-o="tank"></b></div>
       </div>
+      <div class="wp-ff" data-x="ff"></div>
       <div class="wp-in">
         <label class="f wpf">WP<span class="wpsel">
           <select data-k="wpType" aria-label="Point type"><option value="">Type</option>${isAirport(w.name) ? `<option value="APT"${r.wpType === 'APT' ? ' selected' : ''}>Airport</option>` : ''}${WP_TYPES.map((t) => `<option${t === r.wpType ? ' selected' : ''}>${t}</option>`).join('')}</select>
           <select data-k="wpVal" aria-label="Point number or name"></select></span></label>
         <label class="f">DTD ID<input type="text" data-k="dtd" value="${esc(r.dtd)}" autocomplete="off"></label>
-        <label class="f"><span class="lbl">IAS <small>kt</small></span><input type="number" inputmode="numeric" data-k="ias" data-req value="${esc(r.ias)}"></label>
+        <label class="f"><span class="lbl">IAS <small>${i === 0 ? 'kt, optional' : 'kt'}</small></span><input type="number" inputmode="numeric" data-k="ias" data-req value="${esc(r.ias)}"></label>
         <label class="f"><span class="lbl">TCA <small>optional</small></span><input type="text" data-k="tca" value="${esc(r.tca)}" autocomplete="off"></label>
         <label class="f mg"><span class="lbl">MGRS GRID <small>NavLog: ${esc(w.name)}</small></span><input type="text" data-k="mgrs" data-req value="${esc(r.mgrs)}" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="13S EC 1234 5678"><span class="ll" data-o="latlong"></span></label>
         <label class="f rem">Description / remarks<input type="text" data-k="remarks" value="${esc(r.remarks)}" autocomplete="off"></label>
@@ -287,11 +294,11 @@ function refresh() {
   const dash = (v) => (v === '' || v == null ? '—' : v);
   $('#fuel-calc').innerHTML = `
     <div class="k"><span>Aircraft fuel</span><b>${dash(card.aircraftFuel)}</b></div>
-    <div class="k"><span>Req</span><b>${dash(card.req)}</b></div>
+    <div class="k"><span>Req</span><b>${dash(card.req)}</b><small class="ff">ForeFlight ${dash(card.reqForeFlight)}</small></div>
     <div class="k"><span>Burn</span><b>${dash(card.burn)}</b></div>
     <div class="k"><span>Reserve ${resMin} min</span><b>${dash(card.reserve)}</b></div>
     <div class="k bingo"><span>Bingo</span><b>${dash(card.bingo)}</b></div>
-    <div class="formula">BINGO = REQ ${dash(card.req)} + ALTERNATE ${dash(inp.altFuel || 0)} + RESERVE (${dash(card.burn)} lbs/hr x ${resMin} min = ${dash(card.reserve)})</div>`;
+    <div class="formula">REQ = ${dash(card.burn)} lbs/hr x flight time ${dash(fmtPlus(card.flightSec))} + start/taxi ${card.taxiFuel}<br>BINGO = REQ ${dash(card.req)} + ALTERNATE ${dash(inp.altFuel || 0)} + RESERVE (${dash(card.burn)} lbs/hr x ${resMin} min = ${dash(card.reserve)})<br>${card.allComputed ? 'Times and GS from your IAS and the NavLog winds' : 'Legs without an IAS use ForeFlight times and GS'}. Magnetic variation used: ${card.magVar.toFixed(1)}°${card.magVar >= 0 ? 'E' : 'W'}</div>`;
 
   // route text
   if (!state.routeEdited) $('#routeText').value = card.route;
@@ -303,6 +310,16 @@ function refresh() {
     for (const o of $$('[data-o]', el)) {
       const v = w[o.dataset.o];
       o.textContent = v === '' ? (o.dataset.o === 'latlong' ? '' : '–') : v;
+    }
+    const L = w._leg || {};
+    $('[data-x=tas]', el).textContent = L.tas ? String(Math.round(L.tas)) : '–';
+    const ffEl = $('[data-x=ff]', el);
+    if (i === 0) ffEl.hidden = true;
+    else {
+      ffEl.hidden = false;
+      ffEl.textContent = L.computed
+        ? `From your IAS: density alt ${Math.round(L.da).toLocaleString()} ft, ${L.distNm.toFixed(1)} NM${L.exactDist ? ' (from grids)' : ''}. ForeFlight had ETE ${fmtPlus(L.ffSec) || '–'}, GS ${L.ffGs || '–'}.`
+        : 'Enter an IAS to work out GS and time for this leg. Showing ForeFlight values.';
     }
     const mgEl = $('[data-k=mgrs]', el);
     const valid = !!mgrsToLatLon(state.rows[i].mgrs);
@@ -329,7 +346,7 @@ function refresh() {
   state.rows.forEach((r, i) => {
     for (const k of Object.keys(rowMissing)) {
       const el = $(`#wp-${i} [data-k=${k === 'wp' ? (r.wpType ? 'wpVal' : 'wpType') : k}]`);
-      const bad = k === 'mgrs' ? !mgrsToLatLon(r.mgrs) : String(r[k] || '').trim() === '';
+      const bad = k === 'mgrs' ? !mgrsToLatLon(r.mgrs) : k === 'ias' && i === 0 ? false : String(r[k] || '').trim() === '';
       if (k === 'wp') { $(`#wp-${i} [data-k=wpType]`)?.classList.remove('missing'); $(`#wp-${i} [data-k=wpVal]`)?.classList.remove('missing'); }
       mark(el, bad && !(k === 'mgrs' && r.mgrs));
       if (bad) rowMissing[k].push(i + 1);

@@ -52,7 +52,19 @@ export async function parseMobileNavlog(pdfjsLib, data) {
       const totItem = hdrTot ? items
         .filter((i) => Math.abs(i.y - a.y) < 3 && i.x >= hdrTot.x - 2 && parseDuration(i.str) != null)
         .sort((m, n) => m.x - n.x)[0] : null;
+      // LEG and TOTALS distances (km, nm or mi depending on ForeFlight units)
+      const distItems = items
+        .filter((i) => Math.abs(i.y - a.y) < 3 && i.x > a.x && /^[\d.,]+\s*(km|nm|mi)$/i.test(i.str))
+        .sort((m, n) => m.x - n.x);
+      const toKm = (it) => {
+        if (!it) return null;
+        const v = parseFloat(it.str.replace(/,/g, ''));
+        const u = it.str.replace(/[\d.,\s]/g, '').toLowerCase();
+        return u === 'nm' ? v * 1.852 : u === 'mi' ? v * 1.609344 : v;
+      };
       legs.push({
+        legKm: toKm(distItems[0]),
+        totKm: toKm(distItems.find((i) => hdrTot && i.x >= hdrTot.x - 2)),
         totSec: totItem ? parseDuration(totItem.str) : null,
         totExact: !!totItem && /s$/i.test(totItem.str),
         name,
@@ -103,7 +115,7 @@ export function pairWithNavlog(nav, mobile) {
   const points = wps.map((w, i) => {
     if (i === 0) return { mgrs: mobile.dep ? mobile.dep.mgrs : null, legSec: null };
     const l = legs[i - 1];
-    return { mgrs: l.mgrs, legSec: l.legSec, totSec: l.totSec, totExact: l.totExact };
+    return { mgrs: l.mgrs, legSec: l.legSec, totSec: l.totSec, totExact: l.totExact, legKm: l.legKm, totKm: l.totKm };
   });
   return { ok: true, points };
 }
