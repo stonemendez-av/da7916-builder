@@ -1,6 +1,7 @@
 import * as pdfjsLib from '../lib/pdf.min.mjs';
 import * as PDFLib from '../lib/pdf-lib.esm.min.js';
-import { parseNavlog, fmtTime } from './navlog.js';
+import { parseNavlog, fmtTime, isAirport } from './navlog.js';
+import { parseMobileNavlog, pairWithNavlog, isMobileNavlogText } from './mobile.js';
 import { computeCard, prettyMgrs, mgrsToLatLon, reserveMinutes } from './calc.js';
 import { build7916 } from './fill7916.js';
 
@@ -41,7 +42,7 @@ function wpChoices(type) {
   const n = Math.max(30, (state.rows.length || 0) + 10);
   return Array.from({ length: n }, (_, i) => String(i + 1));
 }
-const wpLabel = (r) => (r.wpType && r.wpVal ? `${r.wpType} ${r.wpVal}` : '');
+const wpLabel = (r) => (r.wpType === 'APT' ? r.wpVal : r.wpType && r.wpVal ? `${r.wpType} ${r.wpVal}` : '');
 function usedBy(type, exceptIdx) {
   return new Set(state.rows.filter((r, j) => j !== exceptIdx && r.wpType === type && r.wpVal).map((r) => r.wpVal));
 }
@@ -50,6 +51,7 @@ function refreshWpOptions() {
     const sel = $(`#wp-${i} [data-k=wpVal]`);
     if (!sel) return;
     if (!r.wpType) { sel.innerHTML = '<option value="">–</option>'; sel.disabled = true; return; }
+    if (r.wpType === 'APT') { sel.innerHTML = `<option>${esc(r.wpVal)}</option>`; sel.disabled = true; return; }
     sel.disabled = false;
     const used = usedBy(r.wpType, i);
     let opts = wpChoices(r.wpType).filter((v) => !used.has(v));
@@ -60,40 +62,94 @@ function refreshWpOptions() {
   });
 }
 
-/* ---------- upload ---------- */
+/* ---------- upload: NavLog (required) + Mobile NavLog (optional), any order ---------- */
 const drop = $('#drop');
 const fileInput = $('#navlog-file');
-fileInput.addEventListener('change', () => fileInput.files[0] && loadFile(fileInput.files[0]));
+fileInput.addEventListener('change', () => { loadFiles([...fileInput.files]); fileInput.value = ''; });
 ['dragenter', 'dragover'].forEach((e) => drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.add('over'); }));
 ['dragleave', 'drop'].forEach((e) => drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.remove('over'); }));
-drop.addEventListener('drop', (ev) => { const f = ev.dataTransfer.files[0]; if (f) loadFile(f); });
+drop.addEventListener('drop', (ev) => loadFiles([...ev.dataTransfer.files]));
 
-async function loadFile(file) {
+async function firstLineText(data) {
+  const pdf = await pdfjsLib.getDocument({ data: data.slice(0), isEvalSupported: false }).promise;
+  const tc = await (await pdf.getPage(1)).getTextContent();
+  return tc.items.slice(0, 5).map((i) => i.str).join(' ');
+}
+
+async function loadFiles(files) {
   const err = $('#parse-error');
   err.hidden = true;
-  try {
-    const data = new Uint8Array(await file.arrayBuffer());
-    const nav = await parseNavlog(pdfjsLib, data);
-    state.nav = nav;
-    state.fileName = file.name;
-    state.routeEdited = false;
-    if (nav.flightRules) { state.rules = nav.flightRules; state.rulesAuto = true; } else state.rulesAuto = false;
-    state.rows = nav.waypoints.map(() => ({
-      wpType: '', wpVal: '', wp: '', dtd: '', ias: $('#iasAll').value || '', remarks: '', mgrs: '',
-    }));
-    if (!$('#operation').value && nav.callsign) $('#operation').placeholder = `e.g. ${nav.callsign}`;
-    renderSummary();
-    renderWaypoints();
-    ['#step-mission', '#step-wps', '#step-build'].forEach((s) => ($(s).hidden = false));
-    $('#download').hidden = true;
-    $('#preview').innerHTML = '';
-    $('#build-msg').hidden = true;
-    refresh();
-  } catch (e) {
-    console.error(e);
-    err.textContent = `Couldn't read that file: ${e.message || e}`;
-    err.hidden = false;
+  const errors = [];
+  let gotNav = false;
+  for (const file of files) {
+    try {
+      const data = new Uint8Array(await file.arrayBuffer());
+      if (isMobileNavlogText(await firstLineText(data))) {
+        state.mobile = await parseMobileNavlog(pdfjsLib, data);
+        state.mobileName = file.name;
+      } else {
+        state.navBase = await parseNavlog(pdfjsLib, data);
+        state.navName = file.name;
+        gotNav = true;
+      }
+    } catch (e) {
+      console.error(e);
+      errors.push(`${file.name}: ${e.message || e}`);
+    }
   }
+  if (errors.length) { err.textContent = `Couldn't read ${errors.join('; ')}`; err.hidden = false; }
+  if (gotNav) startFromNavlog();
+  applyMobile();
+  renderFileStatus();
+  if (state.nav) { renderSummary(); renderWaypoints(); refresh(); }
+}
+
+function startFromNavlog() {
+  const nav = state.navBase;
+  state.routeEdited = false;
+  if (nav.flightRules) { state.rules = nav.flightRules; state.rulesAuto = true; } else state.rulesAuto = false;
+  state.rows = nav.waypoints.map((w) => {
+    const apt = isAirport(w.name);
+    const r = { wpType: apt ? 'APT' : '', wpVal: apt ? w.name.toUpperCase() : '', dtd: '', tca: '', ias: $('#iasAll').value || '', remarks: '', mgrs: '', mgrsSrc: '' };
+    r.wp = wpLabel(r);
+    return r;
+  });
+  if (!$('#operation').value && nav.callsign) $('#operation').placeholder = `e.g. ${nav.callsign}`;
+  ['#step-mission', '#step-wps', '#step-build'].forEach((s) => ($(s).hidden = false));
+  $('#download').hidden = true;
+  $('#preview').innerHTML = '';
+  $('#build-msg').hidden = true;
+}
+
+// Merge Mobile NavLog data (exact MGRS, leg seconds) into the working NavLog
+function applyMobile() {
+  state.mobileError = '';
+  if (!state.navBase) { state.nav = null; return; }
+  const base = state.navBase;
+  state.nav = { ...base, hasMobile: false, waypoints: base.waypoints.map((w) => ({ ...w, legSec: null })) };
+  if (!state.mobile) return;
+  const pair = pairWithNavlog(base, state.mobile);
+  if (!pair.ok) { state.mobileError = pair.error; return; }
+  state.nav.hasMobile = true;
+  pair.points.forEach((p, i) => {
+    Object.assign(state.nav.waypoints[i], { legSec: p.legSec, totSec: p.totSec, totExact: p.totExact });
+    const r = state.rows[i];
+    if (r && p.mgrs && (!r.mgrs || r.mgrsSrc === 'mobile')) { r.mgrs = p.mgrs; r.mgrsSrc = 'mobile'; }
+  });
+}
+
+function renderFileStatus() {
+  const el = $('#file-status');
+  const nav = state.navName
+    ? `<li class="ok">NavLog: <b>${esc(state.navName)}</b></li>`
+    : '<li class="need">NavLog: not loaded (required)</li>';
+  let mob;
+  if (!state.mobileName) mob = '<li class="opt">Mobile NavLog: not loaded (optional; adds exact MGRS grids and leg times to the second)</li>';
+  else if (state.mobileError) mob = `<li class="need">Mobile NavLog: <b>${esc(state.mobileName)}</b>. ${esc(state.mobileError)}</li>`;
+  else if (!state.navBase) mob = `<li class="ok">Mobile NavLog: <b>${esc(state.mobileName)}</b> (waiting for the NavLog)</li>`;
+  else mob = `<li class="ok">Mobile NavLog: <b>${esc(state.mobileName)}</b>. MGRS and leg times applied</li>`;
+  el.innerHTML = nav + mob;
+  el.hidden = false;
 }
 
 function renderSummary() {
@@ -102,11 +158,12 @@ function renderSummary() {
   el.innerHTML = `
     <div class="ttl">${esc(n.title)}</div>
     <div class="chips">
-      <span class="chip">Waypoints <b>${n.waypoints.length}</b></span>
+      <span class="chip">Points <b>${n.waypoints.length}</b></span>
       <span class="chip">ETE <b>${esc(fmtTime(n.totalEteMin))}</b></span>
       <span class="chip">Distance <b>${esc(n.totalDistanceNm)} NM</b></span>
       <span class="chip">Flight fuel <b>${esc(n.flightFuel)} ${esc(n.flightFuelUnits)}</b></span>
       ${n.flightRules ? `<span class="chip">Filed <b>${n.flightRules}</b></span>` : ''}
+      ${n.hasMobile ? '' : '<span class="chip" style="background:var(--warn-bg);color:var(--warn)">Leg times to the minute only</span>'}
     </div>`;
   el.hidden = false;
 }
@@ -155,7 +212,6 @@ function renderWaypoints() {
       </div>
       <div class="wp-auto">
         <div><span>MC</span><b data-o="mc"></b></div>
-        <div><span>TCA</span><b data-o="tca"></b></div>
         <div><span>ALT</span><b data-o="alt"></b></div>
         <div><span>ETE</span><b data-o="ete"></b></div>
         <div><span>ELAPSED</span><b data-o="elapsed"></b></div>
@@ -167,10 +223,11 @@ function renderWaypoints() {
       </div>
       <div class="wp-in">
         <label class="f wpf">WP<span class="wpsel">
-          <select data-k="wpType" aria-label="Point type"><option value="">Type</option>${WP_TYPES.map((t) => `<option${t === r.wpType ? ' selected' : ''}>${t}</option>`).join('')}</select>
+          <select data-k="wpType" aria-label="Point type"><option value="">Type</option>${isAirport(w.name) ? `<option value="APT"${r.wpType === 'APT' ? ' selected' : ''}>Airport</option>` : ''}${WP_TYPES.map((t) => `<option${t === r.wpType ? ' selected' : ''}>${t}</option>`).join('')}</select>
           <select data-k="wpVal" aria-label="Point number or name"></select></span></label>
         <label class="f">DTD ID<input type="text" data-k="dtd" value="${esc(r.dtd)}" autocomplete="off"></label>
         <label class="f"><span class="lbl">IAS <small>kt</small></span><input type="number" inputmode="numeric" data-k="ias" data-req value="${esc(r.ias)}"></label>
+        <label class="f"><span class="lbl">TCA <small>optional</small></span><input type="text" data-k="tca" value="${esc(r.tca)}" autocomplete="off"></label>
         <label class="f mg"><span class="lbl">MGRS GRID <small>NavLog: ${esc(w.name)}</small></span><input type="text" data-k="mgrs" data-req value="${esc(r.mgrs)}" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="13S EC 1234 5678"><span class="ll" data-o="latlong"></span></label>
         <label class="f rem">Description / remarks<input type="text" data-k="remarks" value="${esc(r.remarks)}" autocomplete="off"></label>
       </div>
@@ -182,6 +239,7 @@ function renderWaypoints() {
       inp.addEventListener('input', () => {
         const k = inp.dataset.k;
         state.rows[i][k] = inp.value;
+        if (k === 'mgrs') state.rows[i].mgrsSrc = 'user';
         refresh();
       });
       if (inp.dataset.k === 'mgrs') {
@@ -197,7 +255,8 @@ function renderWaypoints() {
       const r = state.rows[i];
       r.wpType = typeSel.value;
       const used = usedBy(r.wpType, i);
-      r.wpVal = r.wpType ? (wpChoices(r.wpType).find((v) => !used.has(v)) || '') : '';
+      r.wpVal = r.wpType === 'APT' ? state.nav.waypoints[i].name.toUpperCase()
+        : r.wpType ? (wpChoices(r.wpType).find((v) => !used.has(v)) || '') : '';
       r.wp = wpLabel(r);
       refreshWpOptions();
       refresh();
@@ -250,7 +309,8 @@ function refresh() {
     mgEl.classList.toggle('bad', !!state.rows[i].mgrs && !valid);
     if (state.rows[i].mgrs && !valid) $('[data-o=latlong]', el).textContent = 'Not a valid MGRS grid';
     const badge = $('[data-badge]', el);
-    if (valid) { badge.className = 'badge auto'; badge.textContent = 'MGRS entered'; }
+    if (valid && state.rows[i].mgrsSrc === 'mobile') { badge.className = 'badge auto'; badge.textContent = 'MGRS from Mobile NavLog'; }
+    else if (valid) { badge.className = 'badge edit'; badge.textContent = 'MGRS entered'; }
     else if (state.rows[i].mgrs) { badge.className = 'badge need'; badge.textContent = 'MGRS not valid'; }
     else { badge.className = 'badge need'; badge.textContent = 'Enter MGRS'; }
   });

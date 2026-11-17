@@ -42,6 +42,15 @@ export function fmtLatLon(lat, lon) {
   return `${part(lat, 'N', 'S', 2)} ${part(lon, 'E', 'W', 3)}`;
 }
 
+// 4+01 for leg/elapsed times; 1+02+30 past an hour
+export function fmtPlus(sec) {
+  if (sec == null || isNaN(sec)) return '';
+  sec = Math.round(sec);
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  const ss = String(s).padStart(2, '0');
+  return h ? `${h}+${String(m).padStart(2, '0')}+${ss}` : `${m}+${ss}`;
+}
+
 export function reserveMinutes(rules) {
   return rules === 'IFR' ? 30 : 20;
 }
@@ -58,25 +67,35 @@ export function computeCard(nav, inp, rows) {
   const bingo = req != null && reserve != null ? req + altFuel + reserve : null;
 
   let tank = acFuel;
+  let cumSec = 0;
   const wps = nav.waypoints.map((w, i) => {
     const r = rows[i] || {};
     const mgrs = prettyMgrs(r.mgrs || '');
     const ll = mgrsToLatLon(mgrs);
+    // leg time: seconds from the Mobile NavLog when loaded, else NavLog minutes
+    const legSec = i === 0 ? null : (w.legSec ?? (w.legTimeMin != null ? w.legTimeMin * 60 : null));
+    let elapsedSec = null;
+    if (i > 0) {
+      // ForeFlight's running total when it still shows seconds, else add up leg seconds
+      if (nav.hasMobile && w.totExact) { cumSec = w.totSec; elapsedSec = cumSec; }
+      else if (nav.hasMobile && legSec != null) { cumSec += legSec; elapsedSec = cumSec; }
+      else elapsedSec = w.cumTimeMin != null ? w.cumTimeMin * 60 : null;
+    }
     let minFuel = null;
-    if (i > 0 && burn != null && w.legTimeMin != null) {
-      minFuel = Math.round((burn * w.legTimeMin) / 60);
+    if (i > 0 && burn != null && legSec != null) {
+      minFuel = Math.round((burn * legSec) / 3600);
       if (tank != null) tank = tank - minFuel;
     }
     return {
       wp: r.wp || '',
       dtd: r.dtd || '',
-      mc: i > 0 && w.mc ? String(w.mc).padStart(3, '0') : '',
+      mc: i > 0 && w.mc ? `${String(w.mc).padStart(3, '0')}°M` : '',
       alt: w.alt || '',
-      tca: i > 0 && w.hdg ? String(w.hdg).padStart(3, '0') : '',
+      tca: r.tca || '',
       tank: tank != null ? String(tank) : '',
       minFuel: minFuel != null ? String(minFuel) : '',
-      ete: i > 0 ? fmtTime(w.legTimeMin) : '',
-      elapsed: i > 0 ? fmtTime(w.cumTimeMin) : '',
+      ete: i > 0 ? fmtPlus(legSec) : '',
+      elapsed: i > 0 ? fmtPlus(elapsedSec) : '',
       legDist: w.legDist || '',
       rem: w.remDist || '',
       ias: r.ias || '',

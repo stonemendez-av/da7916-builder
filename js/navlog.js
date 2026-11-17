@@ -125,6 +125,13 @@ function parseTable(lines, header) {
 // segment into the leg of the next real waypoint so the card shows real legs only.
 export const isTocTod = (name) => /^-?\s*TO[CD](\s*\d+)?\s*-?$/i.test(String(name || '').trim());
 
+// Airport identifiers: 4-letter ICAO (KCOS) or FAA IDs containing a digit (1V6, CO90)
+export function isAirport(name) {
+  const s = String(name || '').trim().toUpperCase();
+  if (!s || coordFromName(s) || isTocTod(s)) return false;
+  return /^[A-Z]{4}$/.test(s) || /^(?=.*\d)[A-Z0-9]{3,4}$/.test(s);
+}
+
 function mergeTocTod(wps) {
   const out = [];
   let pending = [];

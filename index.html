@@ -24,10 +24,11 @@
     <section class="step" id="step-upload">
       <h2><span class="n">1</span> NavLog</h2>
       <label class="drop" id="drop">
-        <input type="file" id="navlog-file" accept="application/pdf,.pdf">
-        <span class="drop-main">Choose or drop a ForeFlight NavLog PDF</span>
-        <span class="drop-hint">The PDF you export or share from ForeFlight's NavLog</span>
+        <input type="file" id="navlog-file" accept="application/pdf,.pdf" multiple>
+        <span class="drop-main">Choose or drop your ForeFlight NavLog and Mobile NavLog PDFs</span>
+        <span class="drop-hint">Pick both at once or one at a time. The site tells them apart.</span>
       </label>
+      <ul id="file-status" class="files" hidden></ul>
       <div id="parse-error" class="alert error" hidden></div>
       <div id="nav-summary" class="summary" hidden></div>
     </section>
@@ -92,7 +93,7 @@
           <button type="button" id="ias-apply" class="btn ghost">Apply</button>
         </div>
       </div>
-      <p class="note">Pick each point's type: SP, ACP, CP and RP take a number, LZs take a bird name and PZs a tree name. A number or name can only be used once per type. Enter the MGRS grid for every point; the ForeFlight coordinate is shown only as a reference because it's rounded to the nearest minute. LAT LONG is converted from your grid.</p>
+      <p class="note">Pick each point's type: SP, ACP, CP and RP take a number, LZs take a bird name and PZs a tree name. A number or name can only be used once per type. Airports fill in as their identifier. MGRS grids come from the Mobile NavLog when it's loaded; otherwise type them in (the regular NavLog's coordinates are rounded to the nearest minute, so they're only shown as a reference). Every point needs a grid before you can build. LAT LONG is converted from the grid.</p>
       <div id="wp-list"></div>
     </section>
 
