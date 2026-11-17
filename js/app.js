@@ -150,7 +150,7 @@ function renderWaypoints() {
     return `
     <div class="wp" id="wp-${i}">
       <div class="wp-head">
-        <div><span class="wp-idx">${role}</span><span class="wp-name">${esc(w.name)}</span></div>
+        <div><span class="wp-idx">${role}</span><span class="wp-name">${esc(w.name)}</span>${w.mergedFrom ? `<span class="wp-idx" style="margin-left:8px">leg includes ${esc(w.mergedFrom.join(', '))}</span>` : ''}</div>
         <span class="badge" data-badge></span>
       </div>
       <div class="wp-auto">

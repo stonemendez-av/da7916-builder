@@ -89,10 +89,7 @@ export function computeCard(nav, inp, rows) {
     };
   });
 
-  const routeIdx = new Set(nav.routeNames);
-  const routeMgrs = nav.waypoints
-    .map((w, i) => (routeIdx.has(w.name) && i > 0 && i < nav.waypoints.length - 1 ? wps[i].mgrs : null))
-    .filter(Boolean);
+  const routeMgrs = wps.slice(1, -1).map((w) => w.mgrs).filter(Boolean);
 
   return {
     operation: inp.operation || '',

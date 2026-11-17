@@ -16,7 +16,7 @@ Everything runs in the browser. No file is uploaded anywhere.
 | 7916 box | Source |
 |---|---|
 | Operation | User |
-| Route | ForeFlight Route line points, using the MGRS you entered (editable) |
+| Route | Every point between departure and destination, using the MGRS you entered (editable) |
 | Aircraft Fuel | User |
 | Req | ForeFlight Flight Fuel |
 | Burn | User (lbs/hr) |
@@ -39,6 +39,8 @@ Everything runs in the browser. No file is uploaded anywhere.
 | Clock | Left blank |
 
 Each waypoint row carries the leg flown into that waypoint, matching ForeFlight's layout.
+
+ForeFlight's -TOC- and -TOD- rows are dropped. Their segment is folded into the next real point's leg: LEG DIST and ETE span the whole leg (from REM and the running ETE), GS is averaged over the leg, and MC/TCA come from the longer segment.
 
 ## Limits
 - MGRS is always typed in by hand. ForeFlight rounds coordinate waypoint names to the nearest minute (up to about 0.5 NM off), which is too coarse for the card.

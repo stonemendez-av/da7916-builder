@@ -121,6 +121,50 @@ function parseTable(lines, header) {
   return rows;
 }
 
+// ForeFlight inserts -TOC- / -TOD- pseudo-waypoints. Drop them and fold their
+// segment into the leg of the next real waypoint so the card shows real legs only.
+export const isTocTod = (name) => /^-?\s*TO[CD](\s*\d+)?\s*-?$/i.test(String(name || '').trim());
+
+function mergeTocTod(wps) {
+  const out = [];
+  let pending = [];
+  for (const w of wps) {
+    if (isTocTod(w.name)) { pending.push(w); continue; }
+    if (!pending.length || !out.length) { out.push(w); pending = []; continue; }
+    const prev = out[out.length - 1];
+    const segs = [...pending, w];
+    const n = (v) => (v === '' || v == null || isNaN(+v) ? null : +v);
+    const prevRem = n(prev.remDist), rem = n(w.remDist);
+    const segDists = segs.map((s) => n(s.legDist));
+    const legDist = prevRem != null && rem != null ? prevRem - rem
+      : segDists.every((d) => d != null) ? segDists.reduce((a, b) => a + b, 0) : null;
+    const prevCum = prev.cumTimeMin ?? 0;
+    const legTime = w.cumTimeMin != null ? w.cumTimeMin - prevCum
+      : segs.every((s) => s.legTimeMin != null) ? segs.reduce((a, s) => a + s.legTimeMin, 0) : null;
+    // ground speed over the whole leg, weighted by time on each segment
+    let gs = w.gs;
+    const parts = segs.map((s) => ({ d: n(s.legDist), g: n(s.gs) }));
+    if (parts.every((p) => p.d != null && p.g)) {
+      const d = parts.reduce((a, p) => a + p.d, 0);
+      const t = parts.reduce((a, p) => a + p.d / p.g, 0);
+      if (t > 0) gs = String(Math.round(d / t));
+    }
+    // course and heading from the longest segment of the leg
+    const main = segs.reduce((best, s) => ((n(s.legDist) ?? -1) > (n(best.legDist) ?? -1) ? s : best), segs[0]);
+    out.push({
+      ...w,
+      mc: main.mc || w.mc,
+      hdg: main.hdg || w.hdg,
+      gs,
+      legDist: legDist != null ? String(legDist) : w.legDist,
+      legTimeMin: legTime,
+      mergedFrom: pending.map((p) => p.name),
+    });
+    pending = [];
+  }
+  return out;
+}
+
 function valueRightOf(lines, label, startIdx = 0) {
   for (let i = startIdx; i < lines.length; i++) {
     const it = lines[i].items;
@@ -191,8 +235,8 @@ export async function parseNavlog(pdfjsLib, data) {
     totalEteMin: parseTime(ete),
     flightFuel: num(flightFuel),
     flightFuelUnits: /kg/i.test(flightFuel || '') ? 'kg' : /gal/i.test(flightFuel || '') ? 'gal' : 'lbs',
-    routeNames: route ? route.split(/\s+/) : [],
-    waypoints: legs.map((r) => ({
+    routeNames: route ? route.split(/\s+/).map((s) => s.split('/')[0]) : [],
+    waypoints: mergeTocTod(legs.map((r) => ({
       name: r.WAYPOINT,
       coord: coordFromName(r.WAYPOINT),
       mc: clean(r.CRS),
@@ -204,6 +248,6 @@ export async function parseNavlog(pdfjsLib, data) {
       legTimeMin: parseTime(r.TIME_LEG),
       cumTimeMin: parseTime(r.ETE),
       raw: r,
-    })),
+    }))),
   };
 }
