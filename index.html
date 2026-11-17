@@ -61,18 +61,17 @@
       <details class="more">
         <summary>Card options</summary>
         <div class="grid">
-          <label class="f">MGRS precision
-            <select id="precision" data-save>
-              <option value="6">6-digit (100 m)</option>
-              <option value="8" selected>8-digit (10 m)</option>
-              <option value="10">10-digit (1 m)</option>
-            </select>
-          </label>
           <label class="f"><span class="lbl">Footer ROUTE <small>bottom of each page</small></span>
             <input type="text" id="footerRoute" autocomplete="off">
           </label>
           <label class="f">Footer V:
             <input type="text" id="footerV" autocomplete="off">
+          </label>
+          <label class="f wide"><span class="lbl">LZ names <small>birds; comma or one per line; saved in this browser</small></span>
+            <textarea id="lzNames" rows="2"></textarea>
+          </label>
+          <label class="f wide"><span class="lbl">PZ names <small>trees; comma or one per line; saved in this browser</small></span>
+            <textarea id="pzNames" rows="2"></textarea>
           </label>
           <label class="f wide"><span class="lbl">ROUTE <small>header; auto-built from the ForeFlight route</small></span>
             <textarea id="routeText" rows="2"></textarea>
@@ -91,16 +90,16 @@
             <input type="number" id="iasAll" inputmode="numeric" min="0" data-save>
           </label>
           <button type="button" id="ias-apply" class="btn ghost">Apply</button>
-          <button type="button" id="wp-number" class="btn ghost">Number WPs 1, 2, 3…</button>
         </div>
       </div>
-      <p class="note">MGRS is converted from the ForeFlight waypoint name, which is only accurate to the nearest minute (about half a mile). Check each grid against your map and overwrite it if needed; LAT LONG follows whatever MGRS you enter.</p>
+      <p class="note">Pick each point's type: SP, ACP, CP and RP take a number, LZs take a bird name and PZs a tree name. A number or name can only be used once per type. Enter the MGRS grid for every point; the ForeFlight coordinate is shown only as a reference because it's rounded to the nearest minute. LAT LONG is converted from your grid.</p>
       <div id="wp-list"></div>
     </section>
 
     <!-- STEP 4 -->
     <section class="step" id="step-build" hidden>
       <h2><span class="n">4</span> Build the card</h2>
+      <div id="build-block" class="alert error" hidden></div>
       <div id="missing" class="alert warn" hidden></div>
       <label class="check"><input type="checkbox" id="flatten"> Lock the fields (flatten) so the card can't be edited</label>
       <div class="actions">

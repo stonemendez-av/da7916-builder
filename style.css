@@ -91,7 +91,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--od); outlin
 .wp-auto div { padding: 7px 12px; border-right: 1px solid #eeece5; }
 .wp-auto span { display: block; font-size: 11px; color: var(--muted); letter-spacing: .04em; }
 .wp-auto b { font: 600 14px var(--mono); }
-.wp-in { display: grid; grid-template-columns: 90px 110px 90px minmax(170px, 1fr); gap: 10px; padding: 12px; }
+.wp-in { display: grid; grid-template-columns: 190px 110px 90px minmax(200px, 1fr); gap: 10px; padding: 12px; }
 .wp-in .rem { grid-column: 1 / -1; }
 .wp-in .ll { font: 13px var(--mono); color: var(--muted); margin-top: 2px; font-weight: 400; }
 @media (max-width: 640px) {
@@ -120,3 +120,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--od); outlin
 [hidden] { display: none !important; }
 .lbl small { margin-left: 3px; color: var(--muted); }
 .seg { align-self: flex-start; }
+.wpsel { display: flex; gap: 6px; }
+.wpsel select { width: auto; flex: 1 1 0; min-width: 0; padding: 9px 6px; font-weight: 600; }
+.wpsel select:first-child { flex: 0 0 72px; }
+@media (max-width: 640px) { .wp-in .wpf { grid-column: 1 / -1; } }

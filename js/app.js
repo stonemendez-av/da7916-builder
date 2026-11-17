@@ -1,7 +1,7 @@
 import * as pdfjsLib from '../lib/pdf.min.mjs';
 import * as PDFLib from '../lib/pdf-lib.esm.min.js';
 import { parseNavlog, fmtTime } from './navlog.js';
-import { computeCard, toMgrs, prettyMgrs, mgrsToLatLon, fmtLatLon, reserveMinutes } from './calc.js';
+import { computeCard, prettyMgrs, mgrsToLatLon, reserveMinutes } from './calc.js';
 import { build7916 } from './fill7916.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('../lib/pdf.worker.min.mjs', import.meta.url).href;
@@ -23,6 +23,43 @@ for (const el of $$('[data-save]')) {
   el.addEventListener('change', () => store.set(el.id, el.value));
 }
 
+/* ---------- WP naming: SP/ACP/CP/RP use numbers, LZ = birds, PZ = trees ---------- */
+const WP_TYPES = ['SP', 'ACP', 'CP', 'RP', 'LZ', 'PZ'];
+const NAMED = { LZ: 'lzNames', PZ: 'pzNames' };
+const DEFAULT_NAMES = {
+  lzNames: 'Eagle, Hawk, Falcon, Raven, Osprey, Condor, Owl, Heron, Pelican, Crow, Kestrel, Cardinal, Robin, Sparrow, Finch, Bluejay, Magpie, Oriole, Wren, Vulture, Albatross, Kingfisher, Swallow, Starling',
+  pzNames: 'Oak, Pine, Maple, Aspen, Birch, Cedar, Elm, Spruce, Willow, Cottonwood, Juniper, Fir, Hickory, Walnut, Ash, Cypress, Redwood, Sequoia, Poplar, Dogwood, Magnolia, Sycamore, Hemlock, Chestnut',
+};
+for (const id of Object.keys(DEFAULT_NAMES)) {
+  const el = $('#' + id);
+  el.value = store.get(id) ?? DEFAULT_NAMES[id];
+  el.addEventListener('change', () => { store.set(id, el.value); refreshWpOptions(); refresh(); });
+}
+const nameList = (type) => [...new Set($('#' + NAMED[type]).value.split(/[,\n]+/).map((s) => s.trim().toUpperCase()).filter(Boolean))];
+function wpChoices(type) {
+  if (NAMED[type]) return nameList(type);
+  const n = Math.max(30, (state.rows.length || 0) + 10);
+  return Array.from({ length: n }, (_, i) => String(i + 1));
+}
+const wpLabel = (r) => (r.wpType && r.wpVal ? `${r.wpType} ${r.wpVal}` : '');
+function usedBy(type, exceptIdx) {
+  return new Set(state.rows.filter((r, j) => j !== exceptIdx && r.wpType === type && r.wpVal).map((r) => r.wpVal));
+}
+function refreshWpOptions() {
+  state.rows.forEach((r, i) => {
+    const sel = $(`#wp-${i} [data-k=wpVal]`);
+    if (!sel) return;
+    if (!r.wpType) { sel.innerHTML = '<option value="">–</option>'; sel.disabled = true; return; }
+    sel.disabled = false;
+    const used = usedBy(r.wpType, i);
+    let opts = wpChoices(r.wpType).filter((v) => !used.has(v));
+    if (r.wpVal && !opts.includes(r.wpVal)) opts = [r.wpVal, ...opts];
+    sel.innerHTML = `<option value="">${NAMED[r.wpType] ? 'Name' : '#'}</option>` +
+      (opts.length ? opts.map((v) => `<option${v === r.wpVal ? ' selected' : ''}>${esc(v)}</option>`).join('')
+        : '<option value="" disabled>None left, add names in Card options</option>');
+  });
+}
+
 /* ---------- upload ---------- */
 const drop = $('#drop');
 const fileInput = $('#navlog-file');
@@ -41,11 +78,8 @@ async function loadFile(file) {
     state.fileName = file.name;
     state.routeEdited = false;
     if (nav.flightRules) { state.rules = nav.flightRules; state.rulesAuto = true; } else state.rulesAuto = false;
-    const prec = +$('#precision').value;
-    state.rows = nav.waypoints.map((w) => ({
-      wp: '', dtd: '', ias: $('#iasAll').value || '', remarks: '',
-      mgrs: w.coord ? toMgrs(w.coord.lat, w.coord.lon, prec) : '',
-      mgrsAuto: !!w.coord,
+    state.rows = nav.waypoints.map(() => ({
+      wpType: '', wpVal: '', wp: '', dtd: '', ias: $('#iasAll').value || '', remarks: '', mgrs: '',
     }));
     if (!$('#operation').value && nav.callsign) $('#operation').placeholder = `e.g. ${nav.callsign}`;
     renderSummary();
@@ -65,7 +99,6 @@ async function loadFile(file) {
 function renderSummary() {
   const n = state.nav;
   const el = $('#nav-summary');
-  const named = n.waypoints.filter((w) => !w.coord).length;
   el.innerHTML = `
     <div class="ttl">${esc(n.title)}</div>
     <div class="chips">
@@ -74,7 +107,6 @@ function renderSummary() {
       <span class="chip">Distance <b>${esc(n.totalDistanceNm)} NM</b></span>
       <span class="chip">Flight fuel <b>${esc(n.flightFuel)} ${esc(n.flightFuelUnits)}</b></span>
       ${n.flightRules ? `<span class="chip">Filed <b>${n.flightRules}</b></span>` : ''}
-      ${named ? `<span class="chip" style="background:var(--warn-bg);color:var(--warn)">${named} named fix${named > 1 ? 'es' : ''} need MGRS</span>` : ''}
     </div>`;
   el.hidden = false;
 }
@@ -88,26 +120,10 @@ for (const id of ['operation', 'aircraftFuel', 'burn', 'altFuel', 'footerRoute',
 }
 $('#routeText').addEventListener('input', () => { state.routeEdited = true; refresh(); });
 $('#route-reset').addEventListener('click', () => { state.routeEdited = false; refresh(); });
-$('#precision').addEventListener('change', () => {
-  const prec = +$('#precision').value;
-  state.nav?.waypoints.forEach((w, i) => {
-    const r = state.rows[i];
-    if (w.coord && r.mgrsAuto) {
-      r.mgrs = toMgrs(w.coord.lat, w.coord.lon, prec);
-      const inp = $(`#wp-${i} [data-k=mgrs]`);
-      if (inp) inp.value = r.mgrs;
-    }
-  });
-  refresh();
-});
 $('#ias-apply').addEventListener('click', () => {
   const v = $('#iasAll').value;
   store.set('iasAll', v);
   state.rows.forEach((r, i) => { r.ias = v; const el = $(`#wp-${i} [data-k=ias]`); if (el) el.value = v; });
-  refresh();
-});
-$('#wp-number').addEventListener('click', () => {
-  state.rows.forEach((r, i) => { r.wp = String(i + 1); const el = $(`#wp-${i} [data-k=wp]`); if (el) el.value = r.wp; });
   refresh();
 });
 
@@ -150,10 +166,12 @@ function renderWaypoints() {
         <div><span>TANK FUEL</span><b data-o="tank"></b></div>
       </div>
       <div class="wp-in">
-        <label class="f">WP<input type="text" data-k="wp" data-req value="${esc(r.wp)}" autocomplete="off"></label>
+        <label class="f wpf">WP<span class="wpsel">
+          <select data-k="wpType" aria-label="Point type"><option value="">Type</option>${WP_TYPES.map((t) => `<option${t === r.wpType ? ' selected' : ''}>${t}</option>`).join('')}</select>
+          <select data-k="wpVal" aria-label="Point number or name"></select></span></label>
         <label class="f">DTD ID<input type="text" data-k="dtd" value="${esc(r.dtd)}" autocomplete="off"></label>
         <label class="f"><span class="lbl">IAS <small>kt</small></span><input type="number" inputmode="numeric" data-k="ias" data-req value="${esc(r.ias)}"></label>
-        <label class="f mg">MGRS GRID<input type="text" data-k="mgrs" data-req value="${esc(r.mgrs)}" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="13S EC 1234 5678"><span class="ll" data-o="latlong"></span></label>
+        <label class="f mg"><span class="lbl">MGRS GRID <small>NavLog: ${esc(w.name)}</small></span><input type="text" data-k="mgrs" data-req value="${esc(r.mgrs)}" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="13S EC 1234 5678"><span class="ll" data-o="latlong"></span></label>
         <label class="f rem">Description / remarks<input type="text" data-k="remarks" value="${esc(r.remarks)}" autocomplete="off"></label>
       </div>
     </div>`;
@@ -164,7 +182,6 @@ function renderWaypoints() {
       inp.addEventListener('input', () => {
         const k = inp.dataset.k;
         state.rows[i][k] = inp.value;
-        if (k === 'mgrs') state.rows[i].mgrsAuto = false;
         refresh();
       });
       if (inp.dataset.k === 'mgrs') {
@@ -174,7 +191,26 @@ function renderWaypoints() {
         });
       }
     }
+    const typeSel = $('[data-k=wpType]', card);
+    const valSel = $('[data-k=wpVal]', card);
+    typeSel.addEventListener('change', () => {
+      const r = state.rows[i];
+      r.wpType = typeSel.value;
+      const used = usedBy(r.wpType, i);
+      r.wpVal = r.wpType ? (wpChoices(r.wpType).find((v) => !used.has(v)) || '') : '';
+      r.wp = wpLabel(r);
+      refreshWpOptions();
+      refresh();
+    });
+    valSel.addEventListener('change', () => {
+      const r = state.rows[i];
+      r.wpVal = valSel.value;
+      r.wp = wpLabel(r);
+      refreshWpOptions();
+      refresh();
+    });
   });
+  refreshWpOptions();
 }
 
 /* ---------- live recompute ---------- */
@@ -214,10 +250,9 @@ function refresh() {
     mgEl.classList.toggle('bad', !!state.rows[i].mgrs && !valid);
     if (state.rows[i].mgrs && !valid) $('[data-o=latlong]', el).textContent = 'Not a valid MGRS grid';
     const badge = $('[data-badge]', el);
-    const navW = state.nav.waypoints[i];
-    if (!navW.coord && !state.rows[i].mgrs) { badge.className = 'badge need'; badge.textContent = 'Named fix: enter MGRS'; }
-    else if (state.rows[i].mgrsAuto) { badge.className = 'badge auto'; badge.textContent = 'MGRS from NavLog (±0.5′)'; }
-    else { badge.className = 'badge edit'; badge.textContent = 'MGRS entered'; }
+    if (valid) { badge.className = 'badge auto'; badge.textContent = 'MGRS entered'; }
+    else if (state.rows[i].mgrs) { badge.className = 'badge need'; badge.textContent = 'MGRS not valid'; }
+    else { badge.className = 'badge need'; badge.textContent = 'Enter MGRS'; }
   });
 
   // missing-field prompts
@@ -233,21 +268,32 @@ function refresh() {
   const rowMissing = { wp: [], ias: [], mgrs: [] };
   state.rows.forEach((r, i) => {
     for (const k of Object.keys(rowMissing)) {
-      const el = $(`#wp-${i} [data-k=${k}]`);
+      const el = $(`#wp-${i} [data-k=${k === 'wp' ? (r.wpType ? 'wpVal' : 'wpType') : k}]`);
       const bad = k === 'mgrs' ? !mgrsToLatLon(r.mgrs) : String(r[k] || '').trim() === '';
+      if (k === 'wp') { $(`#wp-${i} [data-k=wpType]`)?.classList.remove('missing'); $(`#wp-${i} [data-k=wpVal]`)?.classList.remove('missing'); }
       mark(el, bad && !(k === 'mgrs' && r.mgrs));
       if (bad) rowMissing[k].push(i + 1);
     }
   });
-  const names = { wp: 'WP', ias: 'IAS', mgrs: 'valid MGRS grid' };
-  for (const k of Object.keys(rowMissing)) {
-    if (rowMissing[k].length) missing.push(`${names[k]} for waypoint ${rowMissing[k].join(', ')}`);
+  const names = { wp: 'WP', ias: 'IAS' };
+  for (const k of ['wp', 'ias']) {
+    if (rowMissing[k].length) missing.push(`${names[k]} for point ${rowMissing[k].join(', ')}`);
   }
   const box = $('#missing');
   if (missing.length) {
-    box.innerHTML = `Still blank or invalid (you can build anyway and hand-write them):<ul>${missing.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>`;
+    box.innerHTML = `Still blank (you can build anyway and hand-write them):<ul>${missing.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>`;
     box.hidden = false;
   } else box.hidden = true;
+
+  // MGRS is mandatory: no build until every grid is valid
+  const gridsLeft = rowMissing.mgrs;
+  state.gridsOk = gridsLeft.length === 0;
+  const blk = $('#build-block');
+  if (!state.building) $('#build').disabled = !state.gridsOk;
+  if (gridsLeft.length) {
+    blk.textContent = `Enter a valid MGRS grid for every point before building. Missing or invalid: point ${gridsLeft.join(', ')}.`;
+    blk.hidden = false;
+  } else blk.hidden = true;
 
   state.card = card;
 }
@@ -255,6 +301,9 @@ function refresh() {
 /* ---------- build ---------- */
 $('#build').addEventListener('click', async () => {
   const btn = $('#build');
+  refresh();
+  if (!state.gridsOk) return;
+  state.building = true;
   btn.disabled = true;
   btn.textContent = 'Building…';
   try {
@@ -284,8 +333,9 @@ $('#build').addEventListener('click', async () => {
     msg.textContent = `Build failed: ${e.message || e}`;
     msg.hidden = false;
   } finally {
-    btn.disabled = false;
+    state.building = false;
     btn.textContent = 'Build DA 7916';
+    refresh();
   }
 });
 
