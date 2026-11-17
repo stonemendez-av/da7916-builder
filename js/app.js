@@ -141,12 +141,12 @@ function applyMobile() {
 function renderFileStatus() {
   const el = $('#file-status');
   const nav = state.navName
-    ? `<li class="ok">Flight Documents: <b>${esc(state.navName)}</b></li>`
-    : '<li class="need">Flight Documents: not loaded (required)</li>';
+    ? `<li class="ok">ForeFlight - Flight Documents: <b>${esc(state.navName)}</b></li>`
+    : '<li class="need">ForeFlight - Flight Documents: not loaded (required)</li>';
   let mob;
   if (!state.mobileName) mob = '<li class="opt">Mobile NavLog: not loaded (optional; adds exact MGRS grids and leg times to the second)</li>';
   else if (state.mobileError) mob = `<li class="need">Mobile NavLog: <b>${esc(state.mobileName)}</b>. ${esc(state.mobileError)}</li>`;
-  else if (!state.navBase) mob = `<li class="ok">Mobile NavLog: <b>${esc(state.mobileName)}</b> (waiting for the Flight Documents)</li>`;
+  else if (!state.navBase) mob = `<li class="ok">Mobile NavLog: <b>${esc(state.mobileName)}</b> (waiting for the ForeFlight - Flight Documents)</li>`;
   else mob = `<li class="ok">Mobile NavLog: <b>${esc(state.mobileName)}</b>. MGRS and leg times applied</li>`;
   el.innerHTML = nav + mob;
   el.hidden = false;

@@ -5,8 +5,8 @@ Turns a ForeFlight NavLog PDF into a filled **DA Form 7916, Army Aviation Time D
 Live site: enable GitHub Pages for this repo (Settings > Pages > Deploy from branch > `main` / root).
 
 ## How to use
-1. Upload the ForeFlight Flight Documents PDF (required) and the ForeFlight Mobile - NavLog PDF (recommended), in either order or both at once.
-   - Flight Documents: enter the flight plan under the FPL tab, tap the share button under the flight plan, select Flights in the 'Send to' pop-up, then go to the Flights tab, share the PDF and save it.
+1. Upload the ForeFlight - Flight Documents PDF (required) and the ForeFlight Mobile - NavLog PDF (recommended), in either order or both at once.
+   - ForeFlight - Flight Documents: enter the flight plan under the FPL tab, tap the share button under the flight plan, select Flights in the 'Send to' pop-up, then go to the Flights tab, share the PDF and save it.
    - Mobile - NavLog: enter the flight plan under the FPL tab, tap the share button under the flight plan, select Print, then tap the share button in the top right of the print pop-up and save the file.
 2. Enter Operation, Aircraft Fuel, Burn (lbs/hr), Fuel to Alternate, and confirm VFR/IFR (auto-detected from the NavLog).
 3. For each point, pick the WP type and number/name, enter DTD ID, IAS (use "IAS for all" to fill quickly) and remarks, and type the MGRS grid. The card can't be built until every grid is valid.
